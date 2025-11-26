@@ -16,7 +16,7 @@ use std::io::Read;
 use std::io::Write;
 use sha1::{Digest, Sha1};
 
-fn write_blob(content: &[u8]) -> String {
+fn create_blob(content: &[u8], write: bool) -> String {
     let header = format!("blob {}\0", content.len());
     let mut full_content = header.as_bytes().to_vec();
     full_content.extend_from_slice(content);
@@ -26,15 +26,17 @@ fn write_blob(content: &[u8]) -> String {
     let hash = hasher.finalize();
     let hash_hex = hex::encode(hash);
 
-    let (dir, file) = hash_hex.split_at(2);
-    let path = format!(".git/objects/{}", dir);
-    fs::create_dir_all(&path).ok();
+    if write {
+        let (dir, file) = hash_hex.split_at(2);
+        let path = format!(".git/objects/{}", dir);
+        fs::create_dir_all(&path).ok();
 
-    let full_path = format!("{}/{}", path, file);
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&full_content).unwrap();
-    let compressed = encoder.finish().unwrap();
-    fs::write(full_path, compressed).unwrap();
+        let full_path = format!("{}/{}", path, file);
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&full_content).unwrap();
+        let compressed = encoder.finish().unwrap();
+        fs::write(full_path, compressed).unwrap();
+    }
 
     hash_hex
 }
@@ -67,7 +69,7 @@ fn write_tree_for_dir(dir_path: &Path) -> String {
         } else {
             // Write blob for file
             let content = fs::read(&path).unwrap();
-            let blob_hash = write_blob(&content);
+            let blob_hash = create_blob(&content, true);
             let mode = "100644"; // regular file mode
             entries.push((mode.to_string(), name, blob_hash));
         }
@@ -110,8 +112,48 @@ fn write_tree_for_dir(dir_path: &Path) -> String {
     hash_hex
 }
 
+fn write_commit(tree_sha: &str, parent_sha: &str, message: &str) -> String {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let timezone = "+0000";
+    let author = format!("Author Name <author@example.com> {} {}", timestamp, timezone);
+    let committer = format!("Committer Name <committer@example.com> {} {}", timestamp, timezone);
+
+    let mut content = String::new();
+    content.push_str(&format!("tree {}\n", tree_sha));
+    content.push_str(&format!("parent {}\n", parent_sha));
+    content.push_str(&format!("author {}\n", author));
+    content.push_str(&format!("committer {}\n", committer));
+    content.push_str("\n");
+    content.push_str(message);
+    content.push_str("\n");
+
+    let header = format!("commit {}\0", content.len());
+    let mut full_content = header.as_bytes().to_vec();
+    full_content.extend_from_slice(content.as_bytes());
+
+    let mut hasher = Sha1::new();
+    hasher.update(&full_content);
+    let hash = hasher.finalize();
+    let hash_hex = hex::encode(hash);
+
+    let (dir, file) = hash_hex.split_at(2);
+    let path = format!(".git/objects/{}", dir);
+    fs::create_dir_all(&path).ok();
+
+    let full_path = format!("{}/{}", path, file);
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&full_content).unwrap();
+    let compressed = encoder.finish().unwrap();
+    fs::write(full_path, compressed).unwrap();
+
+    hash_hex
+}
+
 fn main() {
-    eprintln!("Logs from your program will appear here!");
+    // eprintln!("Logs from your program will appear here!");
 
     let args: Vec<String> = env::args().collect();
 
@@ -205,6 +247,28 @@ fn main() {
         "write-tree" => {
             let tree_hash = write_tree_for_dir(Path::new("."));
             println!("{}", tree_hash);
+        }
+        "hash-object" => {
+            if args.len() < 4 || args[2] != "-w" {
+                println!("Usage: hash-object -w <file>");
+                return;
+            }
+            let file_path = &args[3];
+            let content = fs::read(file_path).unwrap();
+            let hash = create_blob(&content, true);
+            println!("{}", hash);
+        }
+        "commit-tree" => {
+            // Usage: commit-tree <tree_sha> -p <parent_sha> -m <message>
+            if args.len() < 7 {
+                println!("Usage: commit-tree <tree_sha> -p <parent_sha> -m <message>");
+                return;
+            }
+            let tree_sha = &args[2];
+            let parent_sha = &args[4];
+            let message = &args[6];
+            let commit_hash = write_commit(tree_sha, parent_sha, message);
+            println!("{}", commit_hash);
         }
         _ => {
             println!("unknown command: {}", args[1]);
