@@ -26,3 +26,36 @@ To verify that things are working, there are commands to inspect these objects:
 - `ls-tree`: Lists the contents of a tree object, showing you what files and directories it contains.
 
 The code uses the `flate2` library for Zlib compression (because Git compresses everything) and `sha1` for calculating the hashes that identify every object.
+
+## Tests
+
+Prerequisites:
+- Rust toolchain (`cargo`)
+- Git CLI (`git`) available in `PATH`
+- `bash`
+
+Build the project:
+```bash
+cargo build --quiet
+```
+
+Run all unit tests (scripts in `tests/` that compare against official Git):
+```bash
+PROGRAM="$(pwd)/target/debug/rgit"
+for f in tests/test_*.sh; do
+  bash "$f" "$PROGRAM"
+done
+```
+
+Run a single test:
+```bash
+PROGRAM="$(pwd)/target/debug/rgit"
+bash tests/test_hash_object.sh "$PROGRAM"
+```
+
+Manual testing (optional):
+```bash
+cargo run -- init
+echo "hello world" > test.txt
+cargo run -- hash-object -w test.txt
+```
