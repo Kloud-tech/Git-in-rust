@@ -39,10 +39,10 @@ Build the project:
 cargo build --quiet
 ```
 
-Run all unit tests (scripts in `tests/` that compare against official Git):
+Run all unit tests (scripts in `scripts/` that compare against official Git):
 ```bash
 PROGRAM="$(pwd)/target/debug/rgit"
-for f in tests/test_*.sh; do
+for f in scripts/test_*.sh; do
   bash "$f" "$PROGRAM"
 done
 ```
@@ -50,7 +50,7 @@ done
 Run a single test:
 ```bash
 PROGRAM="$(pwd)/target/debug/rgit"
-bash tests/test_hash_object.sh "$PROGRAM"
+bash scripts/test_hash_object.sh "$PROGRAM"
 ```
 
 Manual testing (optional):
